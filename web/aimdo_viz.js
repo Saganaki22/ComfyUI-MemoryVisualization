@@ -347,6 +347,86 @@ function createPanel() {
         if (dragging) saveState({ left: panel.offsetLeft, top: panel.offsetTop });
         dragging = false;
     });
+    const DEFAULT_HOTKEY = "Home";
+    let resetHotkey = saved.resetHotkey || DEFAULT_HOTKEY;
+
+    function resetPanelPosition() {
+        panel.style.left = "";
+        panel.style.top = "";
+        panel.style.right = "10px";
+        panel.style.bottom = "10px";
+        saveState({ left: null, top: null });
+    }
+
+    function labelForKey(key) {
+        if (!key) return "none";
+        if (key === " ") return "Space";
+        return key.length === 1 ? key.toUpperCase() : key;
+    }
+
+    function buildContextMenu() {
+        const menu = document.createElement("div");
+        menu.id = "aimdo-viz-ctx-menu";
+        menu.style.cssText = `position:fixed;z-index:10001;background:${C.bg};border:1px solid ${C.border};border-radius:6px;padding:4px 0;min-width:200px;font-family:monospace;font-size:12px;color:${C.text};box-shadow:0 4px 12px rgba(0,0,0,0.7);display:none;`;
+        const item = document.createElement("div");
+        item.style.cssText = `padding:6px 12px;cursor:pointer;white-space:nowrap;`;
+        item.innerHTML = `Reset position: <b id="aimdo-ctx-hk-label">${escHtml(labelForKey(resetHotkey))}</b> <span style="color:${C.textDim};font-size:10px;">(click to rebind)</span>`;
+        menu.appendChild(item);
+
+        function show(x, y) {
+            menu.style.display = "block";
+            menu.style.left = x + "px";
+            menu.style.top = y + "px";
+            // keep on screen
+            const r = menu.getBoundingClientRect();
+            if (r.right > window.innerWidth) menu.style.left = (x - r.width) + "px";
+            if (r.bottom > window.innerHeight) menu.style.top = (y - r.height) + "px";
+        }
+        function hide() { menu.style.display = "none"; listeningForKey = false; }
+
+        let listeningForKey = false;
+        item.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (listeningForKey) { hide(); return; }
+            listeningForKey = true;
+            const label = menu.querySelector("#aimdo-ctx-hk-label");
+            label.textContent = "...press a key...";
+            label.style.color = "#e67e22";
+        });
+
+        const keyHandler = (e) => {
+            if (!listeningForKey) return;
+            e.preventDefault();
+            e.stopPropagation();
+            resetHotkey = e.key;
+            saveState({ resetHotkey });
+            menu.querySelector("#aimdo-ctx-hk-label").textContent = labelForKey(resetHotkey);
+            menu.querySelector("#aimdo-ctx-hk-label").style.color = "";
+            listeningForKey = false;
+            hide();
+        };
+        document.addEventListener("keydown", keyHandler, true);
+
+        document.addEventListener("mousedown", (e) => {
+            if (!menu.contains(e.target)) hide();
+        });
+
+        document.body.appendChild(menu);
+        return { show, hide, el: menu };
+    }
+
+    const ctxMenu = buildContextMenu();
+
+    panel.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        ctxMenu.show(e.clientX, e.clientY);
+    });
+
+    document.addEventListener("keydown", (e) => {
+        if (ctxMenu.el && ctxMenu.el.style.display === "block") return;
+        if (e.key === resetHotkey) resetPanelPosition();
+    });
 
     document.body.appendChild(panel);
     body._titleSpan = titleSpan;
