@@ -231,7 +231,7 @@ function createPanel() {
         background: ${C.bg}; color: ${C.text};
         border: 1px solid ${C.border}; border-radius: 8px;
         padding: 0; font-family: monospace; font-size: 12px;
-        z-index: 10000; min-width: 280px; width: 340px; max-height: 90vh;
+        z-index: 10000; min-width: 200px; width: 340px; max-height: 90vh;
         box-shadow: 0 4px 12px rgba(0,0,0,0.7);
         user-select: none; resize: horizontal; overflow-y: auto;
     `;
@@ -287,8 +287,8 @@ function createPanel() {
         border-radius: 8px 8px 0 0; cursor: move;
     `;
     const titleSpan = document.createElement("span");
-    titleSpan.style.cssText = `font-weight:bold;color:${C.text};`;
-    titleSpan.textContent = "VRAM";
+    titleSpan.style.cssText = `font-weight:bold;color:${C.text};white-space:nowrap;`;
+    titleSpan.textContent = "Memory";
     header.appendChild(titleSpan);
 
     const miniBar = document.createElement("div");
@@ -320,7 +320,7 @@ function createPanel() {
     const unloadBtn = document.createElement("span");
     unloadBtn.textContent = "unload ▾";
     unloadBtn.title = "Unload models / free cache (click for options)";
-    unloadBtn.style.cssText = `cursor:pointer;font-size:10px;padding:1px 6px;background:${C.btn};border-radius:3px;color:${C.btnText};`;
+    unloadBtn.style.cssText = `cursor:pointer;font-size:10px;padding:1px 6px;background:${C.btn};border-radius:3px;color:${C.btnText};white-space:nowrap;`;
 
     const unloadMenu = document.createElement("div");
     unloadMenu.style.cssText = `
@@ -474,7 +474,7 @@ function createPanel() {
         if (!edgeDrag) return;
         const delta = e.clientX - edgeDrag.startX;
         const newWidth = edgeDrag.side === "left" ? edgeDrag.startWidth - delta : edgeDrag.startWidth + delta;
-        panel.style.width = Math.max(280, newWidth) + "px";
+        panel.style.width = Math.max(200, newWidth) + "px";
     });
     document.addEventListener("mouseup", () => {
         if (edgeDrag) {
@@ -519,6 +519,7 @@ function createPanel() {
     attachCanvasObserver();
     body._titleSpan = titleSpan;
     body._miniBar = miniBar;
+    body._panel = panel;
     return body;
 }
 
@@ -563,7 +564,10 @@ function renderData(body, data) {
     }
 
     const r = ensureStructure(body);
-    body._titleSpan.textContent = data.aimdo_active ? "VRAM (aimdo)" : "VRAM";
+    const pw = body._panel.offsetWidth;
+    body._titleSpan.textContent =
+        pw >= 320 && data.aimdo_active ? "Memory (aimdo)" :
+        pw >= 240 ? "Memory" : "";
     pushHistory(data);
 
     const used = data.total_vram - data.free_vram;
