@@ -235,10 +235,9 @@ function createPanel() {
         box-shadow: 0 4px 12px rgba(0,0,0,0.7);
         user-select: none; resize: horizontal; overflow-y: auto;
     `;
+    if (saved.width != null) panel.style.width = saved.width + "px";
 
-    // dock against .graph-canvas-panel's bottom-right corner (the splitter
-    // panel that shrinks when sidebars open). #graph-canvas-container stays
-    // full-viewport so it can't be used as bounds.
+    // .graph-canvas-panel shrinks when sidebars open; #graph-canvas-container doesn't
     function getCanvasEl() {
         return document.querySelector(".graph-canvas-panel")
             || document.getElementById("graph-canvas-container")
@@ -259,8 +258,7 @@ function createPanel() {
     let rightOffset = saved.rightOffset != null ? saved.rightOffset : 10;
     let bottomOffset = saved.bottomOffset != null ? saved.bottomOffset : 10;
 
-    // clamp against the viewport (not the canvas panel) so the user can drag
-    // the panel anywhere on screen even if the canvas panel sits below a topbar
+    // viewport bounds, not canvas-panel bounds — topbar shouldn't trap the panel
     function clampOffsets(ro, bo) {
         const b = getCanvasBounds();
         const w = panel.offsetWidth, h = panel.offsetHeight;
@@ -272,8 +270,7 @@ function createPanel() {
         };
     }
 
-    // visual-only — closure offsets are user intent, only mutated on drag,
-    // so a temporary clamp from a small viewport doesn't overwrite saved state
+    // visual-only clamp; closure offsets stay as user intent so they survive temporary shrinks
     function applyOffsets() {
         const { ro, bo, b, w, h } = clampOffsets(rightOffset, bottomOffset);
         panel.style.left = (b.right - w - ro) + "px";
@@ -444,7 +441,7 @@ function createPanel() {
     });
     document.addEventListener("mouseup", () => {
         if (dragging) {
-            // clamp before persist so an off-screen drop doesn't get saved
+            // clamp before persist
             const c = clampOffsets(rightOffset, bottomOffset);
             rightOffset = c.ro;
             bottomOffset = c.bo;
@@ -454,16 +451,57 @@ function createPanel() {
         dragging = false;
     });
 
+    // edge resize handles — left grows leftward (right edge is dock anchor, ro stays);
+    // right grows rightward (left edge gets anchored via ResizeObserver's ro delta)
+    let suppressWidthAnchor = false;
+    let edgeDrag = null;
+    function makeEdgeHandle(side) {
+        const h = document.createElement("div");
+        h.title = "Drag to resize";
+        h.style.cssText = `position:absolute;top:28px;bottom:0;${side}:0;width:4px;cursor:ew-resize;z-index:1;`;
+        h.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            edgeDrag = { side, startX: e.clientX, startWidth: panel.offsetWidth };
+            if (side === "left") suppressWidthAnchor = true;
+        });
+        panel.appendChild(h);
+    }
+    makeEdgeHandle("left");
+    makeEdgeHandle("right");
+
+    document.addEventListener("mousemove", (e) => {
+        if (!edgeDrag) return;
+        const delta = e.clientX - edgeDrag.startX;
+        const newWidth = edgeDrag.side === "left" ? edgeDrag.startWidth - delta : edgeDrag.startWidth + delta;
+        panel.style.width = Math.max(280, newWidth) + "px";
+    });
+    document.addEventListener("mouseup", () => {
+        if (edgeDrag) {
+            edgeDrag = null;
+            suppressWidthAnchor = false;
+        }
+    });
+
     document.body.appendChild(panel);
     applyOffsets();
 
-    // re-anchor when the panel itself resizes (collapse/expand toggle, user drag-resize)
+    // bottom-right handle changes width → anchor left edge via ro delta;
+    // left handle sets suppressWidthAnchor to keep the right edge anchored instead
+    let lastPanelWidth = null;
     if (typeof ResizeObserver !== "undefined") {
-        new ResizeObserver(applyOffsets).observe(panel);
+        new ResizeObserver(() => {
+            const w = panel.offsetWidth;
+            if (lastPanelWidth !== null && w !== lastPanelWidth) {
+                if (!suppressWidthAnchor) rightOffset -= (w - lastPanelWidth);
+                saveState({ width: w, rightOffset, bottomOffset });
+            }
+            lastPanelWidth = w;
+            applyOffsets();
+        }).observe(panel);
     }
 
-    // sidebar toggles don't fire window.resize, so observe the panel directly.
-    // canvas may not exist during setup(), so poll until it does.
+    // sidebar toggles don't fire window.resize. canvas may not exist yet — poll until it does.
     let observed = null;
     function attachCanvasObserver() {
         const el = getCanvasEl();
