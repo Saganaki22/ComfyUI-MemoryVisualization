@@ -259,15 +259,23 @@ function createPanel() {
     let rightOffset = saved.rightOffset != null ? saved.rightOffset : 10;
     let bottomOffset = saved.bottomOffset != null ? saved.bottomOffset : 10;
 
-    // visual-only — closure offsets are user intent, only mutated on drag,
-    // so a temporary clamp from a small parent doesn't overwrite saved state
-    function applyOffsets() {
+    // clamp against the viewport (not the canvas panel) so the user can drag
+    // the panel anywhere on screen even if the canvas panel sits below a topbar
+    function clampOffsets(ro, bo) {
         const b = getCanvasBounds();
         const w = panel.offsetWidth, h = panel.offsetHeight;
-        const maxRight = Math.max(0, b.right - b.left - w);
-        const maxBottom = Math.max(0, b.bottom - b.top - h);
-        const ro = Math.max(0, Math.min(rightOffset, maxRight));
-        const bo = Math.max(0, Math.min(bottomOffset, maxBottom));
+        const vw = window.innerWidth, vh = window.innerHeight;
+        return {
+            ro: Math.max(b.right - vw, Math.min(ro, b.right - w)),
+            bo: Math.max(b.bottom - vh, Math.min(bo, b.bottom - h)),
+            b, w, h,
+        };
+    }
+
+    // visual-only — closure offsets are user intent, only mutated on drag,
+    // so a temporary clamp from a small viewport doesn't overwrite saved state
+    function applyOffsets() {
+        const { ro, bo, b, w, h } = clampOffsets(rightOffset, bottomOffset);
         panel.style.left = (b.right - w - ro) + "px";
         panel.style.top = (b.bottom - h - bo) + "px";
         panel.style.right = "auto";
@@ -386,10 +394,9 @@ function createPanel() {
     document.addEventListener("mouseup", () => {
         if (dragging) {
             // clamp before persist so an off-screen drop doesn't get saved
-            const b = getCanvasBounds();
-            const w = panel.offsetWidth, h = panel.offsetHeight;
-            rightOffset = Math.max(0, Math.min(rightOffset, b.right - b.left - w));
-            bottomOffset = Math.max(0, Math.min(bottomOffset, b.bottom - b.top - h));
+            const c = clampOffsets(rightOffset, bottomOffset);
+            rightOffset = c.ro;
+            bottomOffset = c.bo;
             applyOffsets();
             saveState({ rightOffset, bottomOffset });
         }
