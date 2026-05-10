@@ -231,11 +231,11 @@ function createPanel() {
         background: ${C.bg}; color: ${C.text};
         border: 1px solid ${C.border}; border-radius: 8px;
         padding: 0; font-family: monospace; font-size: 12px;
-        z-index: 50; min-width: 200px; width: 340px; max-height: 90vh;
+        z-index: 50; min-width: 200px; width: 340px; max-width: 100vw; max-height: 90vh;
         box-shadow: 0 4px 12px rgba(0,0,0,0.7);
         user-select: none; resize: horizontal; overflow-y: auto;
     `;
-    if (saved.width != null) panel.style.width = saved.width + "px";
+    if (saved.width != null) panel.style.width = Math.min(saved.width, window.innerWidth) + "px";
 
     // .graph-canvas-panel shrinks when sidebars open; #graph-canvas-container doesn't
     function getCanvasEl() {
@@ -258,14 +258,28 @@ function createPanel() {
     let rightOffset = saved.rightOffset != null ? saved.rightOffset : 10;
     let bottomOffset = saved.bottomOffset != null ? saved.bottomOffset : 10;
 
-    // viewport bounds, not canvas-panel bounds — topbar shouldn't trap the panel
+    // viewport bounds for left/right/bottom; the lowest visible top-chrome
+    // element for the top edge, so the panel can't slide under ComfyUI's
+    // topbar / workflow tabs (which have higher z-index than us)
+    function getTopChromeBottom() {
+        const sels = [".comfyui-body-top", ".topbar-container", ".workflow-tabs-container", ".workflow-tabs"];
+        let bottom = 0;
+        for (const s of sels) {
+            for (const el of document.querySelectorAll(s)) {
+                const r = el.getBoundingClientRect();
+                if (r.height > 0 && r.bottom > bottom) bottom = r.bottom;
+            }
+        }
+        return bottom;
+    }
     function clampOffsets(ro, bo) {
         const b = getCanvasBounds();
         const w = panel.offsetWidth, h = panel.offsetHeight;
         const vw = window.innerWidth, vh = window.innerHeight;
+        const minTop = getTopChromeBottom();
         return {
             ro: Math.max(b.right - vw, Math.min(ro, b.right - w)),
-            bo: Math.max(b.bottom - vh, Math.min(bo, b.bottom - h)),
+            bo: Math.max(b.bottom - vh, Math.min(bo, b.bottom - h - minTop)),
             b, w, h,
         };
     }
@@ -431,6 +445,29 @@ function createPanel() {
         dx = e.clientX - panel.offsetLeft;
         dy = e.clientY - panel.offsetTop;
     });
+    // Ctrl/Cmd + mousedown anywhere on the panel starts a drag — capture phase
+    // so we intercept before child elements (buttons, edge handles) react
+    const isModifier = e => (e.ctrlKey || e.metaKey) && e.button === 0;
+    const updateCursor = (e) => { panel.style.cursor = (e.ctrlKey || e.metaKey) ? "move" : ""; };
+    document.addEventListener("keydown", updateCursor);
+    document.addEventListener("keyup", updateCursor);
+    window.addEventListener("blur", () => { panel.style.cursor = ""; });
+    panel.addEventListener("mousedown", (e) => {
+        if (!isModifier(e) || dragging) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dragging = true;
+        dx = e.clientX - panel.offsetLeft;
+        dy = e.clientY - panel.offsetTop;
+    }, true);
+    // suppress the click that follows a Ctrl+drag so a Ctrl+click on a button
+    // doesn't trigger its action after the drag ends
+    panel.addEventListener("click", (e) => {
+        if (isModifier(e)) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }, true);
     document.addEventListener("mousemove", (e) => {
         if (!dragging) return;
         const b = getCanvasBounds();
@@ -474,7 +511,7 @@ function createPanel() {
         if (!edgeDrag) return;
         const delta = e.clientX - edgeDrag.startX;
         const newWidth = edgeDrag.side === "left" ? edgeDrag.startWidth - delta : edgeDrag.startWidth + delta;
-        panel.style.width = Math.max(200, newWidth) + "px";
+        panel.style.width = Math.max(200, Math.min(window.innerWidth, newWidth)) + "px";
     });
     document.addEventListener("mouseup", () => {
         if (edgeDrag) {
