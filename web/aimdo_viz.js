@@ -491,11 +491,10 @@ function createPanel() {
     let resetHotkey = saved.resetHotkey || DEFAULT_HOTKEY;
 
     function resetPanelPosition() {
-        panel.style.left = "";
-        panel.style.top = "";
-        panel.style.right = "10px";
-        panel.style.bottom = "10px";
-        saveState({ left: null, top: null });
+        rightOffset = 10;
+        bottomOffset = 10;
+        applyOffsets();
+        saveState({ rightOffset, bottomOffset, left: null, top: null });
     }
 
     function labelForKey(key) {
@@ -507,7 +506,7 @@ function createPanel() {
     function buildContextMenu() {
         const menu = document.createElement("div");
         menu.id = "aimdo-viz-ctx-menu";
-        menu.style.cssText = `position:fixed;z-index:10001;background:${C.bg};border:1px solid ${C.border};border-radius:6px;padding:4px 0;min-width:200px;font-family:monospace;font-size:12px;color:${C.text};box-shadow:0 4px 12px rgba(0,0,0,0.7);display:none;`;
+        menu.style.cssText = `position:fixed;z-index:52;background:${C.bg};border:1px solid ${C.border};border-radius:6px;padding:4px 0;min-width:200px;font-family:monospace;font-size:12px;color:${C.text};box-shadow:0 4px 12px rgba(0,0,0,0.7);display:none;`;
         const item = document.createElement("div");
         item.style.cssText = `padding:6px 12px;cursor:pointer;white-space:nowrap;`;
         item.innerHTML = `Reset position: <b id="aimdo-ctx-hk-label">${escHtml(labelForKey(resetHotkey))}</b> <span style="color:${C.textDim};font-size:10px;">(click to rebind)</span>`;
